@@ -231,7 +231,7 @@ def declare_toolchains(*, execs = None, targets = SUPPORTED_TARGETS):
             # If we can compile a compiler for that target, we can use that compiler
             # to compile for any other target.
             for (arch, os) in targets
-            if arch != "none"  # wasm is no good for us.
+            if arch not in ("none", "android")  # wasm and android can't exec.
         ]
 
     for (exec_os, exec_cpu) in execs:

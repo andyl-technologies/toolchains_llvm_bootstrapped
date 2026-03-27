@@ -5,6 +5,7 @@ cc_args_list(
     name = "hermetic_link_flags",
     args = select({
         "@platforms//os:macos": [],
+        "@platforms//os:android": [],
         "//conditions:default": [
             "//toolchain/runtimes/args:hermetic_link_flags",
         ],
@@ -29,6 +30,7 @@ cc_args_list(
         ],
         "@platforms//os:linux": [],
         "@platforms//os:windows": [],
+        "@platforms//os:android": [],
         "@platforms//os:none": [],
     }),
     visibility = ["//toolchain:__subpackages__"],

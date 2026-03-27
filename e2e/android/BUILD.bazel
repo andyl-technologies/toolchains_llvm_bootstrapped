@@ -1,0 +1,68 @@
+load("@bazel_lib//lib:transitions.bzl", "platform_transition_binary")
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
+# ---- Sources ----
+
+cc_library(
+    name = "add",
+    srcs = ["add.c"],
+    hdrs = ["add.h"],
+)
+
+cc_binary(
+    name = "hello",
+    srcs = ["hello.c"],
+)
+
+cc_binary(
+    name = "hello_cxx",
+    srcs = ["hello_cxx.cc"],
+)
+
+cc_binary(
+    name = "libadd.so",
+    srcs = ["jni_stub.c"],
+    linkshared = True,
+    deps = [":add"],
+)
+
+# ---- Cross-compiled artifacts ----
+
+ANDROID_TARGETS = {
+    "aarch64": "@llvm//platforms:android_aarch64",
+    "x86_64": "@llvm//platforms:android_x86_64",
+}
+
+BINARIES = {
+    "hello": "executable",
+    "hello_cxx": "executable",
+    "libadd.so": "shared",
+}
+
+[
+    platform_transition_binary(
+        name = "{}_android_{}".format(binary.replace(".", "_"), arch),
+        binary = ":{}".format(binary),
+        target_platform = platform,
+    )
+    for arch, platform in ANDROID_TARGETS.items()
+    for binary in BINARIES.keys()
+]
+
+# ---- Verification tests ----
+
+[
+    sh_test(
+        name = "{}_android_{}_test".format(binary.replace(".", "_"), arch),
+        srcs = ["verify_android_elf.sh"],
+        args = [
+            "$(location :{}_android_{})".format(binary.replace(".", "_"), arch),
+            arch,
+            binary_type,
+        ],
+        data = [":{}_android_{}".format(binary.replace(".", "_"), arch)],
+    )
+    for arch, platform in ANDROID_TARGETS.items()
+    for binary, binary_type in BINARIES.items()
+]

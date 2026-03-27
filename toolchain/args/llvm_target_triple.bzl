@@ -1,3 +1,5 @@
+load("@android_ndk_sysroot//:defs.bzl", "ANDROID_API_LEVEL")
+
 LLVM_TARGET_TRIPLE = select({
     #TODO: Generate this automatically
     "@llvm//platforms/config:linux_x86_64_gnu": ["x86_64-linux-gnu"],
@@ -8,6 +10,8 @@ LLVM_TARGET_TRIPLE = select({
     "@llvm//platforms/config:macos_aarch64": ["aarch64-apple-darwin"],
     "@llvm//platforms/config:windows_x86_64": ["x86_64-w64-windows-gnu"],
     "@llvm//platforms/config:windows_aarch64": ["aarch64-w64-windows-gnu"],
+    "@llvm//platforms/config:android_aarch64": ["aarch64-linux-android" + ANDROID_API_LEVEL],
+    "@llvm//platforms/config:android_x86_64": ["x86_64-linux-android" + ANDROID_API_LEVEL],
     "@llvm//platforms/config:none_wasm32": ["wasm32-unknown-unknown"],
     "@llvm//platforms/config:none_wasm64": ["wasm64-unknown-unknown"],
 }, no_match_error = "Unsupported platform")

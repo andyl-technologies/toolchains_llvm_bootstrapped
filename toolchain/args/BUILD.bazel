@@ -718,6 +718,8 @@ cc_args(
         # The clang driver forces -ISystem and doesn't claim the arg, which
         # would result in a warning when targeting macOS.
         "@platforms//os:macos": [],
+        # Android: let clang find libunwind from the resource directory.
+        "@platforms//os:android": [],
         # Will prevent clang from choosing which libunwind to link against.
         "//conditions:default": ["--unwindlib=none"],
     }),

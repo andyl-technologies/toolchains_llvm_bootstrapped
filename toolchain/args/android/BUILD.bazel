@@ -1,0 +1,32 @@
+load("@rules_cc//cc/toolchains:args.bzl", "cc_args")
+load("//toolchain/args/macos:sysroot.bzl", "cc_sysroot")
+
+package(default_visibility = ["//visibility:public"])
+
+# NDK sysroot -- same pattern as macos_sdk_sysroot.
+# With --sysroot=<ndk> and -target aarch64-linux-android21, clang's Android
+# driver automatically finds Bionic headers, CRT objects, and libraries.
+cc_sysroot(
+    name = "android_ndk_sysroot",
+    allowlist_include_directories = ["@android_ndk_sysroot//:ndk_sysroot"],
+    data = ["@android_ndk_sysroot//:ndk_sysroot"],
+    sysroot = "@android_ndk_sysroot//:ndk_sysroot",
+)
+
+# Resource directory with NDK compiler-rt builtins, mapped to clang 22+ layout.
+cc_args(
+    name = "resource_dir",
+    actions = [
+        "@rules_cc//cc/toolchains/actions:link_actions",
+    ],
+    args = [
+        "-resource-dir",
+        "{resource_dir}",
+    ],
+    data = [
+        "@android_ndk_sysroot//:android_resource_dir",
+    ],
+    format = {
+        "resource_dir": "@android_ndk_sysroot//:android_resource_dir",
+    },
+)

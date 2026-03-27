@@ -54,6 +54,8 @@ filegroup(
             "@libcxxabi//:libcxxabi.static",
             "@libunwind//:libunwind.static",
         ],
+        # Android: libc++ is provided by the NDK sysroot, like macOS.
+        "@platforms//os:android": [],
         "//conditions:default": [],
     }),
     visibility = ["//visibility:public"],
@@ -67,6 +69,8 @@ filegroup(
             "@libcxxabi//:libcxxabi.shared",
             "@libunwind//:libunwind.shared",
         ],
+        # Android: libc++ is provided by the NDK sysroot, like macOS.
+        "@platforms//os:android": [],
         # TODO(zbarsky): windows?
         "//conditions:default": [],
     }),

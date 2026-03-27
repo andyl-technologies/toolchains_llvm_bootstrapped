@@ -51,6 +51,8 @@ def cc_toolchain(name, tool_map, module_map = None, extra_args = []):
                 "@llvm//toolchain/features:static_link_cpp_runtimes",
                 "@llvm//toolchain/features/runtime_library_search_directories:feature",
             ],
+            # Android: libc++ is provided by the NDK sysroot (like macOS).
+            "@platforms//os:android": [],
             "@platforms//os:none": [],
         }) + [
             "@llvm//toolchain/features:prefer_pic_for_opt_binaries",

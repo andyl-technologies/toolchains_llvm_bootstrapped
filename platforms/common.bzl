@@ -10,6 +10,8 @@ SUPPORTED_TARGETS = [
     ("linux", "aarch64"),
     ("windows", "x86_64"),
     ("windows", "aarch64"),
+    ("android", "aarch64"),
+    ("android", "x86_64"),
     ("none", "wasm32"),
     ("none", "wasm64"),
 ]

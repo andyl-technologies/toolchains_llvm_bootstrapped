@@ -227,12 +227,21 @@ def declare_llvm_targets(*, suffix = ""):
         ],
     )
 
+    include_path(
+        name = "android_target_headers",
+        srcs = [
+            ":builtin_resource_dir",
+            "@android_ndk_sysroot//:ndk_sysroot",
+        ],
+    )
+
     module_map(
         name = "module_map",
         include_path = select({
             "@platforms//os:macos": ":macos_target_headers",
             "@platforms//os:linux": ":linux_target_headers",
             "@platforms//os:windows": ":windows_target_headers",
+            "@platforms//os:android": ":android_target_headers",
             "@platforms//os:none": ":wasm_target_headers",
         }),
         visibility = ["//visibility:public"],

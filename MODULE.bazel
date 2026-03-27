@@ -109,6 +109,9 @@ use_repo(musl, "musl_libc")
 mingw = use_extension("//runtimes/mingw/extension:mingw.bzl", "mingw")
 use_repo(mingw, "mingw")
 
+ndk = use_extension("//extensions:ndk.bzl", "ndk")
+use_repo(ndk, "android_ndk_sysroot")
+
 osx = use_extension("//extensions:osx.bzl", "osx")
 osx.from_archive(
     sha256 = "1bde70c0b1c2ab89ff454acbebf6741390d7b7eb149ca2a3ca24cc9203a408b7",
