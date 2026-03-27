@@ -1,3 +1,6 @@
+load("@llvm//:defs.bzl", "exec_test")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+load("@rules_shell//shell:sh_test.bzl", "sh_test")
 load("//:rust_binary_cross_build_test_suite.bzl", "rust_binary_cross_build_test_suite")
 
 package(default_visibility = ["//visibility:public"])
@@ -21,5 +24,36 @@ rust_binary_cross_build_test_suite(
     deps = [
         "@crates//:lz4-sys",
         "@crates//:mimalloc",
+    ],
+)
+
+cc_library(
+    name = "cpp_helper",
+    srcs = ["src/cpp_helper.cc"],
+    hdrs = ["src/cpp_helper.h"],
+)
+
+rust_binary_cross_build_test_suite(
+    name = "rust_cpp_ffi",
+    srcs = ["src/rust_cpp_ffi.rs"],
+    platforms = {
+        "@llvm//platforms:linux_x86_64": "x86-64",
+        "@llvm//platforms:linux_aarch64": "aarch64",
+        "@llvm//platforms:macos_x86_64": "x86_64",
+        "@llvm//platforms:macos_aarch64": "aarch64",
+    },
+    deps = [":cpp_helper"],
+)
+
+# Native execution test -- verifies C++ symbols are resolved at runtime.
+# The cross-build tests above only check architecture via `file`, not execution.
+exec_test(
+    rule = sh_test,
+    name = "rust_cpp_ffi_test",
+    srcs = ["test_rust_cpp_ffi.sh"],
+    data = [":rust_cpp_ffi"],
+    args = ["$(rlocationpath :rust_cpp_ffi)"],
+    deps = [
+        "@bazel_tools//tools/bash/runfiles",
     ],
 )

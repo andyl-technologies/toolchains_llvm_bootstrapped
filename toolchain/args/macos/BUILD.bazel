@@ -94,6 +94,7 @@ cc_args(
     args = [
         "{libclang_rt.builtins.a}",
         "-lSystem",
+        "-lc++",
     ],
     data = [
         "//runtimes/compiler-rt:clang_rt.builtins.static",
