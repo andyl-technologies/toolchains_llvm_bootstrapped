@@ -122,6 +122,15 @@ def _create_resource_dir(rctx, ndk_prebuilt_path, api_level):
 
 # -- Repository rules --
 
+# Google officially supports x86-64 only for Linux & Windows. On macOS the
+# subdirectory is still darwin-x86_64 for historical reasons, and actually
+# contains universal binaries.
+_NDK_PREBUILT_TARGET = {
+    "linux": "linux-x86_64",
+    "mac os x": "darwin-x86_64",
+    "windows": "windows-x86_64",
+}
+
 def _ndk_sysroot_from_path_impl(rctx):
     ndk_home = rctx.os.environ.get(rctx.attr.path_env)
     if not ndk_home:
@@ -129,10 +138,14 @@ def _ndk_sysroot_from_path_impl(rctx):
 
     ndk_home_path = rctx.path(ndk_home)
 
-    # Resolve sysroot by walking the subpath components.
-    sysroot_path = ndk_home_path
-    if rctx.attr.sysroot_subpath:
-        sysroot_path = rctx.path(str(ndk_home_path) + "/" + rctx.attr.sysroot_subpath)
+    # Auto-detect the NDK prebuilt host directory from the repository rule's
+    # host OS. The NDK layout is: toolchains/llvm/prebuilt/<host>/sysroot
+    host_dir = _NDK_PREBUILT_TARGET.get(rctx.os.name)
+    if not host_dir:
+        fail("Unsupported host OS '{}' for NDK sysroot detection".format(rctx.os.name))
+    sysroot_path = rctx.path(
+        str(ndk_home_path) + "/toolchains/llvm/prebuilt/{}/sysroot".format(host_dir),
+    )
 
     if not sysroot_path.exists:
         fail("NDK sysroot not found at {}".format(sysroot_path))
@@ -151,9 +164,6 @@ _ndk_sysroot_from_path = repository_rule(
     environ = ["ANDROID_NDK_HOME"],
     attrs = {
         "path_env": attr.string(default = "ANDROID_NDK_HOME"),
-        "sysroot_subpath": attr.string(
-            default = "toolchains/llvm/prebuilt/linux-x86_64/sysroot",
-        ),
         "api_level": attr.int(default = 28),
     },
 )
@@ -228,7 +238,6 @@ def _ndk_extension_impl(mctx):
         _ndk_sysroot_from_path(
             name = "android_ndk_sysroot",
             path_env = from_path.path_env,
-            sysroot_subpath = from_path.sysroot_subpath,
             api_level = api_level,
         )
     else:
@@ -256,9 +265,6 @@ _from_archive_tag = tag_class(
 _from_path_tag = tag_class(
     attrs = {
         "path_env": attr.string(default = "ANDROID_NDK_HOME"),
-        "sysroot_subpath": attr.string(
-            default = "toolchains/llvm/prebuilt/linux-x86_64/sysroot",
-        ),
     },
 )
 
