@@ -5,11 +5,11 @@ bazel_dep(name = "platforms", version = "1.0.0")
 bazel_dep(name = "llvm", version = "")
 local_path_override(
     module_name = "llvm",
-    path = "../../",
+    path = "../../../",
 )
 
 ndk = use_extension("@llvm//extensions:ndk.bzl", "ndk")
-ndk.from_path(path_env = "ANDROID_NDK_HOME")
+ndk.host()
 ndk.api_level(level = 28)
 
 register_toolchains(

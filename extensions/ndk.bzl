@@ -1,8 +1,10 @@
 """Android NDK sysroot extension for toolchains_llvm_bootstrapped.
 
 Provides two modes for supplying the NDK sysroot:
-  - ndk.from_archive: download from Google (CI, non-Nix users)
-  - ndk.from_path: local path via env var (Nixpkgs, pre-installed NDK)
+  - ndk.from_archive: download a known NDK version from Google by release
+    name (e.g. "r27d"). Known versions and their per-OS URLs/checksums
+    are maintained in ndk_versions.json.
+  - ndk.host: use the NDK already installed on the host (Nixpkgs, Android Studio)
 
 The extension creates @android_ndk_sysroot with:
   - The sysroot directory (Bionic headers, CRT objects, system libraries)
@@ -14,6 +16,10 @@ branches referencing @android_ndk_sysroot can resolve without error.
 """
 
 load("@bazel_features//:features.bzl", "bazel_features")
+
+_NDK_VERSIONS_INDEX_FILE = "//extensions:ndk_versions.json"
+
+_DEFAULT_API_LEVEL = 28
 
 # Android target triples used in the NDK sysroot directory layout.
 _TRIPLES = {
@@ -131,10 +137,10 @@ _NDK_PREBUILT_TARGET = {
     "windows": "windows-x86_64",
 }
 
-def _ndk_sysroot_from_path_impl(rctx):
-    ndk_home = rctx.os.environ.get(rctx.attr.path_env)
+def _ndk_sysroot_host_impl(rctx):
+    ndk_home = rctx.os.environ.get("ANDROID_NDK_HOME")
     if not ndk_home:
-        fail("Environment variable '{}' is not set".format(rctx.attr.path_env))
+        fail("Environment variable 'ANDROID_NDK_HOME' is not set")
 
     ndk_home_path = rctx.path(ndk_home)
 
@@ -159,27 +165,48 @@ def _ndk_sysroot_from_path_impl(rctx):
     rctx.file("BUILD.bazel", _build_content(rctx.attr.api_level))
     rctx.file("defs.bzl", _defs_content(rctx.attr.api_level))
 
-_ndk_sysroot_from_path = repository_rule(
-    implementation = _ndk_sysroot_from_path_impl,
+_ndk_sysroot_host = repository_rule(
+    implementation = _ndk_sysroot_host_impl,
     environ = ["ANDROID_NDK_HOME"],
     attrs = {
-        "path_env": attr.string(default = "ANDROID_NDK_HOME"),
-        "api_level": attr.int(default = 28),
+        "api_level": attr.int(mandatory = True),
     },
 )
 
 def _ndk_sysroot_from_archive_impl(rctx):
-    rctx.download_and_extract(
-        url = rctx.attr.urls,
-        sha256 = rctx.attr.sha256,
-        stripPrefix = rctx.attr.strip_prefix,
-        output = "sysroot",
+    host_os = _NDK_PREBUILT_TARGET.get(rctx.os.name)
+    if not host_os:
+        fail("Unsupported host OS '{}' for NDK archive download".format(rctx.os.name))
+
+    # The version registry is a JSON dict keyed by OS name, each with
+    # "url" and "sha256".  The extension impl serialises it for us.
+    registry = json.decode(rctx.attr.version_info)
+    os_entry = registry.get(rctx.os.name)
+    if not os_entry:
+        fail("NDK version '{}' has no archive for host OS '{}'".format(
+            rctx.attr.version,
+            rctx.os.name,
+        ))
+
+    strip_prefix = "{}/toolchains/llvm/prebuilt/{}".format(
+        rctx.attr.archive_prefix,
+        host_os,
     )
 
-    # For archive mode, builtins may be included if the archive contains
-    # the full NDK prebuilt tree. Try to find them.
-    prebuilt_guess = rctx.path("sysroot").dirname
-    _create_resource_dir(rctx, prebuilt_guess, rctx.attr.api_level)
+    rctx.download_and_extract(
+        url = os_entry["url"],
+        sha256 = os_entry["sha256"],
+        stripPrefix = strip_prefix,
+        output = "ndk_prebuilt",
+    )
+
+    ndk_prebuilt = rctx.path("ndk_prebuilt")
+    sysroot = ndk_prebuilt.get_child("sysroot")
+    if not sysroot.exists:
+        fail("NDK sysroot not found at {}: expected the archive to contain a prebuilt directory with sysroot/".format(sysroot))
+
+    rctx.symlink(sysroot, "sysroot")
+    _create_resource_dir(rctx, ndk_prebuilt, rctx.attr.api_level)
 
     rctx.file("BUILD.bazel", _build_content(rctx.attr.api_level))
     rctx.file("defs.bzl", _defs_content(rctx.attr.api_level))
@@ -187,10 +214,10 @@ def _ndk_sysroot_from_archive_impl(rctx):
 _ndk_sysroot_from_archive = repository_rule(
     implementation = _ndk_sysroot_from_archive_impl,
     attrs = {
-        "urls": attr.string_list(mandatory = True),
-        "sha256": attr.string(mandatory = True),
-        "strip_prefix": attr.string(default = ""),
-        "api_level": attr.int(default = 28),
+        "version": attr.string(mandatory = True),
+        "version_info": attr.string(mandatory = True),
+        "archive_prefix": attr.string(mandatory = True),
+        "api_level": attr.int(mandatory = True),
     },
 )
 
@@ -201,43 +228,66 @@ def _ndk_sysroot_stub_impl(rctx):
 _ndk_sysroot_stub = repository_rule(
     implementation = _ndk_sysroot_stub_impl,
     attrs = {
-        "api_level": attr.int(default = 28),
+        "api_level": attr.int(mandatory = True),
     },
 )
 
 # -- Module extension --
 
+def _get_single_tag(mctx, tag_name):
+    """Return the winning tag for a single-valued NDK tag class, or None.
+
+    Resolution order: root module wins; otherwise fall back to the first
+    non-root module that specifies the tag.  Fails if any single module
+    supplies more than one tag of the same class.
+    """
+    selected = None
+    for mod in mctx.modules:
+        tags = getattr(mod.tags, tag_name)
+        if len(tags) > 1:
+            fail("Only 1 ndk.{}(...) tag is allowed per module, but '{}' has {}".format(
+                tag_name,
+                mod.name,
+                len(tags),
+            ))
+        if not tags:
+            continue
+        if getattr(mod, "is_root", False):
+            return tags[0]
+        selected = tags[0]
+    return selected
+
 def _ndk_extension_impl(mctx):
-    api_level = 28
+    api_level_tag = _get_single_tag(mctx, "api_level")
+    api_level = api_level_tag.level if api_level_tag else _DEFAULT_API_LEVEL
 
-    for mod in mctx.modules:
-        for tag in mod.tags.api_level:
-            api_level = tag.level
+    from_archive = _get_single_tag(mctx, "from_archive")
+    host = _get_single_tag(mctx, "host")
 
-    from_archive = None
-    from_path = None
-
-    for mod in mctx.modules:
-        for tag in mod.tags.from_archive:
-            from_archive = tag
-        for tag in mod.tags.from_path:
-            from_path = tag
-
-    if from_archive and from_path:
-        fail("ndk: specify either from_archive or from_path, not both")
+    if from_archive and host:
+        fail("ndk: specify either from_archive or host, not both")
 
     if from_archive:
+        ndk_versions = json.decode(mctx.read(Label(_NDK_VERSIONS_INDEX_FILE)))
+        version = from_archive.version
+        version_info = ndk_versions.get(version)
+        if not version_info:
+            fail("Unknown NDK version '{}': not found in {}. Available: {}".format(
+                version,
+                _NDK_VERSIONS_INDEX_FILE,
+                ", ".join(sorted(ndk_versions.keys())),
+            ))
+
         _ndk_sysroot_from_archive(
             name = "android_ndk_sysroot",
-            urls = from_archive.urls,
-            sha256 = from_archive.sha256,
-            strip_prefix = from_archive.strip_prefix,
+            version = version,
+            version_info = json.encode(version_info.get("platforms", {})),
+            archive_prefix = version_info.get("archive_prefix", ""),
             api_level = api_level,
         )
-    elif from_path:
-        _ndk_sysroot_from_path(
+    elif host:
+        _ndk_sysroot_host(
             name = "android_ndk_sysroot",
-            path_env = from_path.path_env,
             api_level = api_level,
         )
     else:
@@ -256,16 +306,12 @@ def _ndk_extension_impl(mctx):
 
 _from_archive_tag = tag_class(
     attrs = {
-        "urls": attr.string_list(mandatory = True),
-        "sha256": attr.string(mandatory = True),
-        "strip_prefix": attr.string(default = ""),
+        "version": attr.string(mandatory = True),
     },
 )
 
-_from_path_tag = tag_class(
-    attrs = {
-        "path_env": attr.string(default = "ANDROID_NDK_HOME"),
-    },
+_host_tag = tag_class(
+    attrs = {},
 )
 
 _api_level_tag = tag_class(
@@ -278,7 +324,7 @@ ndk = module_extension(
     implementation = _ndk_extension_impl,
     tag_classes = {
         "from_archive": _from_archive_tag,
-        "from_path": _from_path_tag,
+        "host": _host_tag,
         "api_level": _api_level_tag,
     },
 )

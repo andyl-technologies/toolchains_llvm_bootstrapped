@@ -1,0 +1,15 @@
+{
+  "r27d": {
+    "archive_prefix": "android-ndk-r27d",
+    "platforms": {
+      "linux": {
+        "url": "https://dl.google.com/android/repository/android-ndk-r27d-linux.zip",
+        "sha256": "601246087a682d1944e1e16dd85bc6e49560fe8b6d61255be2829178c8ed15d9"
+      },
+      "mac os x": {
+        "url": "https://dl.google.com/android/repository/android-ndk-r27d-darwin.zip",
+        "sha256": "e69092f9d2bfa5d1199039980a14eb91c03cc971ab5c6968fc08a8e6b84e7bb7"
+      }
+    }
+  }
+}
