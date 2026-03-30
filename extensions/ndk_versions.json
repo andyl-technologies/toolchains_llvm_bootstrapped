@@ -1,6 +1,8 @@
 {
   "r27d": {
     "archive_prefix": "android-ndk-r27d",
+    "clang_version": 18,
+    "min_api_level": 21,
     "platforms": {
       "linux": {
         "url": "https://dl.google.com/android/repository/android-ndk-r27d-linux.zip",
@@ -9,6 +11,29 @@
       "mac os x": {
         "url": "https://dl.google.com/android/repository/android-ndk-r27d-darwin.zip",
         "sha256": "e69092f9d2bfa5d1199039980a14eb91c03cc971ab5c6968fc08a8e6b84e7bb7"
+      },
+      "windows": {
+        "url": "https://dl.google.com/android/repository/android-ndk-r27d-windows.zip",
+        "sha256": "82094f53e66a76b6a9ec4fc35a5076091a92de3b91d13c5d4a7cfdb226304c59"
+      }
+    }
+  },
+  "r29": {
+    "archive_prefix": "android-ndk-r29",
+    "clang_version": 21,
+    "min_api_level": 21,
+    "platforms": {
+      "linux": {
+        "url": "https://dl.google.com/android/repository/android-ndk-r29-linux.zip",
+        "sha256": "4abbbcdc842f3d4879206e9695d52709603e52dd68d3c1fff04b3b5e7a308ecf"
+      },
+      "mac os x": {
+        "url": "https://dl.google.com/android/repository/android-ndk-r29-darwin.zip",
+        "sha256": "ce5e4b100ec5fe5be4eb3edcb2c02528824ff9cda3860f5304619be6c3da34d3"
+      },
+      "windows": {
+        "url": "https://dl.google.com/android/repository/android-ndk-r29-windows.zip",
+        "sha256": "4f83a1a87ea0d33ae2b43812ce27b768be949bc78acf90b955134d19e3068f1c"
       }
     }
   }

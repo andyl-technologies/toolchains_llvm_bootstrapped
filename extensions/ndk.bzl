@@ -76,7 +76,31 @@ filegroup(
 def _defs_content(api_level):
     return 'ANDROID_API_LEVEL = "{}"\n'.format(api_level)
 
-def _create_resource_dir(rctx, ndk_prebuilt_path, api_level):
+def _find_ndk_builtins_dir(ndk_prebuilt_path, clang_version):
+    """Locate the NDK's lib/clang/<ver>/lib/linux/ directory.
+
+    When clang_version is known (from_archive mode), go directly to the
+    expected path.  Otherwise (host mode), scan lib/clang/*/ for it.
+    Returns None if the directory cannot be found.
+    """
+    clang_lib_dir = ndk_prebuilt_path.get_child("lib").get_child("clang")
+    if not clang_lib_dir.exists:
+        return None
+
+    if clang_version:
+        candidate = clang_lib_dir.get_child(str(clang_version)).get_child("lib").get_child("linux")
+        if candidate.exists:
+            return candidate
+        fail("Expected NDK builtins at {} but directory does not exist".format(candidate))
+
+    # Host mode: scan for the first clang version directory.
+    for entry in clang_lib_dir.readdir():
+        candidate = entry.get_child("lib").get_child("linux")
+        if candidate.exists:
+            return candidate
+    return None
+
+def _create_resource_dir(rctx, ndk_prebuilt_path, api_level, clang_version = 0):
     """Create a resource directory with NDK builtins in clang 22+ layout.
 
     Clang 16+ uses a per-target resource dir layout:
@@ -93,17 +117,7 @@ def _create_resource_dir(rctx, ndk_prebuilt_path, api_level):
     """
     api = str(api_level)
 
-    # Find the NDK's clang version directory.
-    clang_lib_dir = ndk_prebuilt_path.get_child("lib").get_child("clang")
-    if not clang_lib_dir.exists:
-        return
-
-    ndk_builtins_dir = None
-    for entry in clang_lib_dir.readdir():
-        candidate = entry.get_child("lib").get_child("linux")
-        if candidate.exists:
-            ndk_builtins_dir = candidate
-            break
+    ndk_builtins_dir = _find_ndk_builtins_dir(ndk_prebuilt_path, clang_version)
     if not ndk_builtins_dir:
         return
 
@@ -206,7 +220,12 @@ def _ndk_sysroot_from_archive_impl(rctx):
         fail("NDK sysroot not found at {}: expected the archive to contain a prebuilt directory with sysroot/".format(sysroot))
 
     rctx.symlink(sysroot, "sysroot")
-    _create_resource_dir(rctx, ndk_prebuilt, rctx.attr.api_level)
+    _create_resource_dir(
+        rctx,
+        ndk_prebuilt,
+        rctx.attr.api_level,
+        clang_version = rctx.attr.clang_version,
+    )
 
     rctx.file("BUILD.bazel", _build_content(rctx.attr.api_level))
     rctx.file("defs.bzl", _defs_content(rctx.attr.api_level))
@@ -217,6 +236,7 @@ _ndk_sysroot_from_archive = repository_rule(
         "version": attr.string(mandatory = True),
         "version_info": attr.string(mandatory = True),
         "archive_prefix": attr.string(mandatory = True),
+        "clang_version": attr.int(mandatory = True),
         "api_level": attr.int(mandatory = True),
     },
 )
@@ -278,11 +298,20 @@ def _ndk_extension_impl(mctx):
                 ", ".join(sorted(ndk_versions.keys())),
             ))
 
+        min_api = version_info.get("min_api_level", 0)
+        if min_api and api_level < min_api:
+            fail("NDK {} requires api_level >= {}, got {}".format(
+                version,
+                min_api,
+                api_level,
+            ))
+
         _ndk_sysroot_from_archive(
             name = "android_ndk_sysroot",
             version = version,
             version_info = json.encode(version_info.get("platforms", {})),
             archive_prefix = version_info.get("archive_prefix", ""),
+            clang_version = version_info.get("clang_version", 0),
             api_level = api_level,
         )
     elif host:
